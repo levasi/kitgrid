@@ -254,6 +254,41 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 
 .tree-row.selected .kind { color: inherit; }
+.tree-row.is-hidden .tree-name,
+.tree-row.is-hidden .kind { opacity: 0.45; }
+
+.layer-fold,
+.layer-fold-spacer,
+.layer-action {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: #71717a;
+}
+
+.layer-fold:hover,
+.layer-action:hover { background: rgb(24 24 27 / 6%); color: #18181b; }
+
+.layer-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.layer-action { opacity: 0.45; }
+.tree-row:hover .layer-action,
+.tree-row:focus-within .layer-action,
+.layer-action.is-on { opacity: 1; }
+.tree-row.selected .layer-action.is-on { color: inherit; }
+
+.design-node.is-locked { pointer-events: none; }
+.design-node.is-locked > .design-node { pointer-events: auto; }
 
 .viewport {
   position: relative;

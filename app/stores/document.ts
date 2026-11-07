@@ -83,6 +83,7 @@ export const useDocumentStore = defineStore('document', () => {
     editor.activePageId = next.pages[0]?.id ?? ''
     editor.editingComponentId = null
     editor.clearSelection()
+    editor.clearLayerFolds()
     editor.hoverId = null
     editor.setBanner(null)
   }

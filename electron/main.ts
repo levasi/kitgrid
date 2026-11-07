@@ -12,11 +12,11 @@ function assertSender(event: IpcMainInvokeEvent) {
 }
 
 function createWindow() {
-  const devUrl = process.env.TESSERA_DEV_URL
+  const devUrl = process.env.KITGRID_DEV_URL
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
-    title: 'Tessera',
+    title: 'Kitgrid',
     backgroundColor: '#f4f4f5',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -47,9 +47,9 @@ async function openProject(event: IpcMainInvokeEvent): Promise<DesktopOpenRespon
   try {
     assertSender(event)
     const result = await dialog.showOpenDialog({
-      title: 'Open Tessera project',
+      title: 'Open Kitgrid project',
       properties: ['openFile'],
-      filters: [{ name: 'Tessera project', extensions: ['json'] }],
+      filters: [{ name: 'Kitgrid project', extensions: ['json'] }],
     })
     const filePath = result.filePaths[0]
     if (result.canceled || !filePath) return { status: 'canceled' }
@@ -77,9 +77,9 @@ async function saveProject(event: IpcMainInvokeEvent, contents: unknown, saveAs:
     let filePath = saveAs ? null : currentPath
     if (!filePath) {
       const result = await dialog.showSaveDialog({
-        title: 'Save Tessera project',
-        defaultPath: currentPath ?? 'project.tessera.json',
-        filters: [{ name: 'Tessera project', extensions: ['json'] }],
+        title: 'Save Kitgrid project',
+        defaultPath: currentPath ?? 'project.kitgrid.json',
+        filters: [{ name: 'Kitgrid project', extensions: ['json'] }],
       })
       if (result.canceled || !result.filePath) return { status: 'canceled' }
       filePath = result.filePath.endsWith('.json') ? result.filePath : `${result.filePath}.json`

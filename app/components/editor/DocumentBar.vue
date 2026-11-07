@@ -34,7 +34,7 @@ const zoomLabel = computed(() => `${Math.round(editor.zoom * 100)}%`)
 <template>
   <header class="document-bar">
     <div class="brand">
-      Tessera
+      Kitgrid
     </div>
     <div class="file-name" :title="documents.filePath ?? 'Untitled'">
       <span>{{ fileLabel }}</span>

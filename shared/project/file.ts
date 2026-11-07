@@ -24,6 +24,7 @@ const textNodeSchema = z.strictObject({
   width: positive,
   height: positive,
   visible: z.boolean(),
+  locked: z.boolean(),
   content: z.string(),
   fontFamily: z.string().min(1),
   fontSize: positive,
@@ -45,6 +46,7 @@ const rectangleNodeSchema = z.strictObject({
   width: positive,
   height: positive,
   visible: z.boolean(),
+  locked: z.boolean(),
   fill: z.string(),
   fillTokenId: tokenRef,
   stroke: z.string(),
@@ -62,6 +64,7 @@ const pathNodeSchema = z.strictObject({
   width: positive,
   height: positive,
   visible: z.boolean(),
+  locked: z.boolean(),
   points: z.array(z.strictObject({ x: finite, y: finite })).min(2),
   closed: z.boolean(),
   fill: z.string(),
@@ -80,6 +83,7 @@ const instanceNodeSchema = z.strictObject({
   width: positive,
   height: positive,
   visible: z.boolean(),
+  locked: z.boolean(),
   componentId: idSchema,
   overrides: z.strictObject({
     label: z.string().optional(),
@@ -108,6 +112,7 @@ function frameNodeSchema() {
     width: positive,
     height: positive,
     visible: z.boolean(),
+    locked: z.boolean(),
     children: z.array(designNodeSchema),
     fill: z.string(),
     fillTokenId: tokenRef,
@@ -134,6 +139,7 @@ function groupNodeSchema() {
     width: positive,
     height: positive,
     visible: z.boolean(),
+    locked: z.boolean(),
     children: z.array(designNodeSchema),
   })
 }
@@ -198,8 +204,8 @@ const documentSchema = z.strictObject({
 })
 
 const projectSchema = z.strictObject({
-  format: z.literal(PROJECT_FORMAT, { error: 'This file is not a Tessera project.' }),
-  version: z.literal(PROJECT_VERSION, { error: 'This file uses an unsupported Tessera project version.' }),
+  format: z.literal(PROJECT_FORMAT, { error: 'This file is not a Kitgrid project.' }),
+  version: z.literal(PROJECT_VERSION, { error: 'This file uses an unsupported Kitgrid project version.' }),
   document: documentSchema,
 }).superRefine((file, ctx) => {
   for (const issue of collectIssues(file.document)) {
@@ -242,6 +248,7 @@ export function validateProjectFile(input: unknown): ValidateResult {
       return { ok: false, error: `Invalid JSON: ${detail}` }
     }
   }
+  if (value && typeof value === 'object') ensureLocked(value)
   const parsed = projectSchema.safeParse(value)
   if (!parsed.success) return { ok: false, error: formatZodError(parsed.error) }
   return { ok: true, file: parsed.data }
@@ -255,6 +262,29 @@ export function serializeProject(document: DesignDocument): string {
   })
   if (!validated.ok) throw new Error(validated.error)
   return JSON.stringify(validated.file, null, 2)
+}
+
+function ensureLocked(value: object) {
+  const document = 'document' in value ? value.document : undefined
+  if (!document || typeof document !== 'object') return
+  const pages = 'pages' in document && Array.isArray(document.pages) ? document.pages : []
+  const components = 'components' in document && Array.isArray(document.components) ? document.components : []
+  for (const page of pages) {
+    if (!page || typeof page !== 'object' || !('children' in page) || !Array.isArray(page.children)) continue
+    page.children.forEach(visitNode)
+  }
+  for (const component of components) {
+    if (!component || typeof component !== 'object' || !('root' in component)) continue
+    visitNode(component.root)
+  }
+}
+
+function visitNode(node: unknown) {
+  if (!node || typeof node !== 'object') return
+  const record = node as Record<string, unknown>
+  if (typeof record.type === 'string' && record.locked === undefined) record.locked = false
+  if (!Array.isArray(record.children)) return
+  record.children.forEach(visitNode)
 }
 
 function formatZodError(error: z.ZodError): string {

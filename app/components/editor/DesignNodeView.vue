@@ -37,20 +37,20 @@ const pathShape = computed(() => {
 })
 
 function onPointerDown(event: PointerEvent) {
-  if (!props.interactive) return
+  if (!props.interactive || props.node.locked) return
   event.stopPropagation()
   gestures.onNodePointerDown(event, display.value.id)
 }
 
 function onContextMenu(event: MouseEvent) {
-  if (!props.interactive) return
+  if (!props.interactive || props.node.locked) return
   event.preventDefault()
   event.stopPropagation()
   editor.openContextMenu(event.clientX, event.clientY, display.value.id)
 }
 
 function onEnter() {
-  if (!props.interactive) return
+  if (!props.interactive || props.node.locked) return
   editor.hoverId = display.value.id
 }
 
@@ -75,7 +75,7 @@ function onLeave() {
   <div
     v-if="node.visible"
     class="design-node"
-    :class="[`is-${display.type}`, { 'is-inert': !interactive }]"
+    :class="[`is-${display.type}`, { 'is-inert': !interactive, 'is-locked': node.locked }]"
     :style="inlineStyle"
     :data-node-id="interactive ? display.id : undefined"
     :aria-label="display.name"

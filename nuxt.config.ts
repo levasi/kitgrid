@@ -11,7 +11,7 @@ export default defineNuxtConfig({
   app: {
     baseURL: process.env.NUXT_APP_BASE_URL || '/',
     head: {
-      title: 'Tessera',
+      title: 'Kitgrid',
       meta: [
         { name: 'description', content: 'An open-source design-system editor.' },
       ],

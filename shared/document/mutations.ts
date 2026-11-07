@@ -28,6 +28,7 @@ export interface NodePatch {
   width?: number
   height?: number
   visible?: boolean
+  locked?: boolean
   content?: string
   fontFamily?: string
   fontSize?: number
@@ -141,6 +142,7 @@ export function moveNodes(doc: DesignDocument, ids: string[], dx: number, dy: nu
   for (const id of topLevelIds(next, ids)) {
     const found = findNode(next, id)
     if (!found) continue
+    if (found.node.locked) continue
     found.node.x += dx
     found.node.y += dy
   }
@@ -156,7 +158,7 @@ export function translateNodes(
   const next = clone(doc)
   for (const [id, origin] of origins) {
     const found = findNode(next, id)
-    if (!found) continue
+    if (!found || found.node.locked) continue
     found.node.x = origin.x + dx
     found.node.y = origin.y + dy
   }
@@ -167,6 +169,7 @@ export function resizeNode(doc: DesignDocument, id: string, box: { x: number, y:
   const next = clone(doc)
   const found = findNode(next, id)
   if (!found) throw new Error('Object not found.')
+  if (found.node.locked) return next
   if (found.node.type === 'path' && found.node.width > 0 && found.node.height > 0) {
     const scaleX = box.width / found.node.width
     const scaleY = box.height / found.node.height
@@ -213,6 +216,7 @@ export function groupNodes(doc: DesignDocument, ids: string[]): { document: Desi
     width: Math.max(1, maxX - minX),
     height: Math.max(1, maxY - minY),
     visible: true,
+    locked: false,
     children,
   }
   const indexes = ordered.map(item => item.index).sort((a, b) => a - b)

@@ -4,7 +4,7 @@ export {}
 
 declare global {
   interface Window {
-    tessera?: {
+    kitgrid?: {
       openProject: () => Promise<DesktopOpenResponse>
       saveProject: (contents: string) => Promise<DesktopSaveResponse>
       saveProjectAs: (contents: string) => Promise<DesktopSaveResponse>

@@ -35,12 +35,12 @@ interface SavePicker {
 let webHandle: ProjectFileHandle | null = null
 
 const projectPickerTypes = [{
-  description: 'Tessera project',
+  description: 'Kitgrid project',
   accept: { 'application/json': ['.json'] },
 }]
 
 export function isDesktop(): boolean {
-  return typeof window !== 'undefined' && window.tessera !== undefined
+  return typeof window !== 'undefined' && window.kitgrid !== undefined
 }
 
 export function clearWebHandle() {
@@ -48,8 +48,8 @@ export function clearWebHandle() {
 }
 
 export async function openProjectFile(): Promise<OpenResult> {
-  if (isDesktop() && window.tessera) {
-    const result = await window.tessera.openProject()
+  if (isDesktop() && window.kitgrid) {
+    const result = await window.kitgrid.openProject()
     if (result.status === 'canceled') return { status: 'canceled' }
     if (result.status === 'error') return { status: 'error', error: result.error }
     webHandle = null
@@ -84,10 +84,10 @@ export async function saveProjectContents(contents: string, saveAs: boolean): Pr
   if (!validated.ok) return { status: 'error', error: validated.error }
   const pretty = JSON.stringify(validated.file, null, 2)
 
-  if (isDesktop() && window.tessera) {
+  if (isDesktop() && window.kitgrid) {
     const result = saveAs
-      ? await window.tessera.saveProjectAs(pretty)
-      : await window.tessera.saveProject(pretty)
+      ? await window.kitgrid.saveProjectAs(pretty)
+      : await window.kitgrid.saveProject(pretty)
     if (result.status === 'canceled') return { status: 'canceled' }
     if (result.status === 'error') return { status: 'error', error: result.error }
     return { status: 'ok', filePath: result.filePath }
@@ -103,7 +103,7 @@ export async function saveProjectContents(contents: string, saveAs: boolean): Pr
   const picker = (window as Window & { showSaveFilePicker?: SavePicker }).showSaveFilePicker
   if (picker) {
     try {
-      const handle = await picker({ suggestedName: 'project.tessera.json', types: projectPickerTypes })
+      const handle = await picker({ suggestedName: 'project.kitgrid.json', types: projectPickerTypes })
       const writable = await handle.createWritable()
       await writable.write(pretty)
       await writable.close()
@@ -115,8 +115,8 @@ export async function saveProjectContents(contents: string, saveAs: boolean): Pr
     }
   }
 
-  downloadProject(pretty, 'project.tessera.json')
-  return { status: 'ok', filePath: 'project.tessera.json' }
+  downloadProject(pretty, 'project.kitgrid.json')
+  return { status: 'ok', filePath: 'project.kitgrid.json' }
 }
 
 function downloadProject(contents: string, filename: string) {

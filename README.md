@@ -1,4 +1,4 @@
-# Tessera
+# Kitgrid
 
 Open-source design-system editor. The same Nuxt frontend runs in the browser and in Electron.
 

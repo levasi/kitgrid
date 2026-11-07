@@ -26,7 +26,7 @@ interface CanvasGestures {
   onWheel: (event: WheelEvent) => void
 }
 
-const gesturesKey: InjectionKey<CanvasGestures> = Symbol('tessera-canvas-gestures')
+const gesturesKey: InjectionKey<CanvasGestures> = Symbol('kitgrid-canvas-gestures')
 
 type DrawTool = Extract<EditorTool, 'frame' | 'shape' | 'text'>
 
@@ -225,6 +225,8 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
       startTool(event)
       return
     }
+    const target = findNode(documents.snapshot(), nodeId)
+    if (target?.node.locked) return
     if (event.shiftKey) {
       editor.toggleSelect(nodeId)
       return
@@ -266,7 +268,7 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
     if (!id) return
     const base = documents.snapshot()
     const found = findNode(base, id)
-    if (!found) return
+    if (!found || found.node.locked) return
     drag = {
       kind: 'resize',
       base,

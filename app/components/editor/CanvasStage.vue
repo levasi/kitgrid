@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { absoluteBox } from '#shared/document/geometry'
+import { findNode } from '#shared/document/tree'
 import { provideCanvasGestures } from '../../composables/useCanvasGestures'
 import { useDocumentActions } from '../../composables/useDocumentActions'
 import { useDocumentStore } from '../../stores/document'
@@ -26,6 +27,14 @@ const size = computed(() => component.value
 const worldStyle = computed(() => ({
   transform: `translate(${editor.panX}px, ${editor.panY}px) scale(${editor.zoom})`,
 }))
+
+const resizeHandles = computed(() => {
+  if (editor.tool !== 'select' || editor.selection.length !== 1) return false
+  const id = editor.selection[0]
+  if (!id) return false
+  const found = findNode(documents.document, id)
+  return Boolean(found && !found.node.locked)
+})
 
 const boxes = computed(() => editor.selection.flatMap((id) => {
   const box = absoluteBox(documents.document, id)
@@ -74,7 +83,7 @@ const hover = computed(() => {
           :zoom="editor.zoom"
           :boxes="boxes"
           :hover="hover"
-          :handles="editor.tool === 'select' && editor.selection.length === 1"
+          :handles="resizeHandles"
           @resize="(handle, event) => gestures.onHandlePointerDown(event, handle)"
         />
         <svg

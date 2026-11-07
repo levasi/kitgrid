@@ -8,6 +8,7 @@ export type EditorTool = 'select' | 'frame' | 'shape' | 'pen' | 'pencil' | 'text
 
 export const useEditorStore = defineStore('editor', () => {
   const selection = ref<string[]>([])
+  const foldedLayers = ref<string[]>([])
   const hoverId = ref<string | null>(null)
   const zoom = ref(1)
   const panX = ref(48)
@@ -38,7 +39,22 @@ export const useEditorStore = defineStore('editor', () => {
 
   function prune(ids: Set<string>) {
     selection.value = selection.value.filter(id => ids.has(id))
+    foldedLayers.value = foldedLayers.value.filter(id => ids.has(id))
     if (hoverId.value && !ids.has(hoverId.value)) hoverId.value = null
+  }
+
+  function isLayerFolded(id: string) {
+    return foldedLayers.value.includes(id)
+  }
+
+  function toggleLayerFold(id: string) {
+    foldedLayers.value = foldedLayers.value.includes(id)
+      ? foldedLayers.value.filter(item => item !== id)
+      : [...foldedLayers.value, id]
+  }
+
+  function clearLayerFolds() {
+    foldedLayers.value = []
   }
 
   function setZoom(next: number) {
@@ -73,6 +89,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   return {
     selection,
+    foldedLayers,
     hoverId,
     zoom,
     panX,
@@ -90,6 +107,9 @@ export const useEditorStore = defineStore('editor', () => {
     toggleSelect,
     clearSelection,
     prune,
+    isLayerFolded,
+    toggleLayerFold,
+    clearLayerFolds,
     setZoom,
     setBanner,
     setTool,

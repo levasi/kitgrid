@@ -13,4 +13,4 @@ const api = {
   },
 }
 
-contextBridge.exposeInMainWorld('tessera', api)
+contextBridge.exposeInMainWorld('kitgrid', api)

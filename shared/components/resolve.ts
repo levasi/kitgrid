@@ -23,6 +23,7 @@ export function resolveInstance(doc: DesignDocument, instance: InstanceNode): De
   clone.width = instance.width
   clone.height = instance.height
   clone.visible = instance.visible
+  clone.locked = instance.locked
   return clone
 }
 
@@ -70,6 +71,7 @@ function missingComponent(instance: InstanceNode): RectangleNode {
     width: instance.width,
     height: instance.height,
     visible: instance.visible,
+    locked: instance.locked,
     fill: '#fee2e2',
     fillTokenId: null,
     stroke: '#dc2626',

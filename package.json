@@ -1,5 +1,5 @@
 {
-  "name": "tessera",
+  "name": "kitgrid",
   "type": "module",
   "private": true,
   "main": "electron-dist/main.cjs",

@@ -1,4 +1,4 @@
-export const PROJECT_FORMAT = 'tessera-project'
+export const PROJECT_FORMAT = 'kitgrid-project'
 export const PROJECT_VERSION = 1
 
 export type NodeType = 'frame' | 'group' | 'text' | 'rectangle' | 'path' | 'instance'
@@ -42,6 +42,7 @@ export interface BaseNode {
   width: number
   height: number
   visible: boolean
+  locked: boolean
 }
 
 export interface FrameNode extends BaseNode {

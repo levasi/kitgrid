@@ -19,7 +19,7 @@ try {
   const url = await waitFor(['http://127.0.0.1:3000', 'http://localhost:3000'])
   electron = spawn('npx', ['electron', '.'], {
     stdio: 'inherit',
-    env: { ...process.env, TESSERA_DEV_URL: url },
+    env: { ...process.env, KITGRID_DEV_URL: url },
   })
   electron.on('exit', () => stop(0))
   nuxt.on('exit', code => stop(code ?? 1))
