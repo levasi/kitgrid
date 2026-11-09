@@ -32,6 +32,7 @@ export const useEditorStore = defineStore('editor', () => {
   const gridMajor = ref(true)
   const penPoints = ref<Array<{ x: number, y: number }>>([])
   const contextMenu = ref<{ x: number, y: number } | null>(null)
+  const editingTextId = ref<string | null>(null)
 
   function selectOnly(id: string) {
     selection.value = [id]
@@ -45,12 +46,18 @@ export const useEditorStore = defineStore('editor', () => {
 
   function clearSelection() {
     selection.value = []
+    editingTextId.value = null
+  }
+
+  function beginTextEdit(id: string | null) {
+    editingTextId.value = id
   }
 
   function prune(ids: Set<string>) {
     selection.value = selection.value.filter(id => ids.has(id))
     foldedLayers.value = foldedLayers.value.filter(id => ids.has(id))
     if (hoverId.value && !ids.has(hoverId.value)) hoverId.value = null
+    if (editingTextId.value && !ids.has(editingTextId.value)) editingTextId.value = null
   }
 
   function isLayerFolded(id: string) {
@@ -137,9 +144,11 @@ export const useEditorStore = defineStore('editor', () => {
     gridMajor,
     penPoints,
     contextMenu,
+    editingTextId,
     selectOnly,
     toggleSelect,
     clearSelection,
+    beginTextEdit,
     prune,
     isLayerFolded,
     toggleLayerFold,

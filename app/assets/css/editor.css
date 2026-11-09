@@ -473,7 +473,21 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 
 .design-node.is-inert { pointer-events: none; }
-.design-node.is-text { white-space: pre-wrap; }
+.design-node.is-text { white-space: pre-wrap; cursor: text; }
+.design-node.is-text-editing { cursor: text; }
+.text-editor {
+  width: 100%;
+  min-height: 1em;
+  outline: none;
+  cursor: text;
+  user-select: text;
+  white-space: pre-wrap;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.design-node.is-inert .text-editor { pointer-events: auto; }
 
 .overlay {
   position: absolute;

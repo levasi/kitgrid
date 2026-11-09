@@ -70,7 +70,7 @@ const lineGridStyle = computed(() => {
 })
 
 const resizeHandles = computed(() => {
-  if (editor.tool !== 'select' || editor.selection.length !== 1) return false
+  if (editor.editingTextId || editor.tool !== 'select' || editor.selection.length !== 1) return false
   const id = editor.selection[0]
   if (!id) return false
   const found = findNode(documents.document, id)

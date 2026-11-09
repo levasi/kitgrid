@@ -12,7 +12,7 @@ const actions = useDocumentActions()
 const fileInput = ref<HTMLInputElement | null>(null)
 
 function isField(target: EventTarget | null) {
-  return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select'))
+  return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, [contenteditable]'))
 }
 
 async function openProject() {

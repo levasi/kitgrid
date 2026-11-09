@@ -139,6 +139,7 @@ export function useDocumentActions() {
           : createRectangle(origin, size)
       documents.commit(insertNode(base, drawingTarget(base), node))
       editor.selectOnly(node.id)
+      editor.beginTextEdit(kind === 'text' ? node.id : null)
       editor.rightTab = 'inspect'
       editor.setBanner(null)
     } catch (error) {

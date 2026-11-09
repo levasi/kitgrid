@@ -1,23 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { resolveInstance } from '#shared/components/resolve'
 import { nodeStyle, resolvedColor } from '#shared/document/paint'
 import { pathData } from '#shared/document/path'
-import { selectableId } from '#shared/document/tree'
+import { findNode, selectableId } from '#shared/document/tree'
 import { isContainer, type DesignNode, type PathNode } from '#shared/document/types'
 import { useCanvasGestures } from '../../composables/useCanvasGestures'
+import { useDocumentActions } from '../../composables/useDocumentActions'
 import { useDocumentStore } from '../../stores/document'
 import { useEditorStore } from '../../stores/editor'
+
+interface InlineTextEdit {
+  kind: 'label'
+  id: string
+  content: string
+}
 
 const props = defineProps<{
   node: DesignNode
   interactive: boolean
   lockChildren?: boolean
+  inlineEdit?: InlineTextEdit | null
 }>()
 
 const documents = useDocumentStore()
 const editor = useEditorStore()
+const actions = useDocumentActions()
 const gestures = useCanvasGestures()
+const editorEl = ref<HTMLElement | null>(null)
 
 const display = computed<DesignNode>(() =>
   props.node.type === 'instance' ? resolveInstance(documents.document, props.node) : props.node,
@@ -36,6 +46,65 @@ const pathShape = computed(() => {
     strokeWidth: node.strokeWidth,
   }
 })
+
+const textEdit = computed(() => {
+  if (props.inlineEdit) return props.inlineEdit
+  if (!props.interactive || props.node.locked || display.value.type !== 'text') return null
+  if (editor.editingTextId !== display.value.id) return null
+  const found = findNode(documents.document, display.value.id)
+  if (found?.node.type !== 'text') return null
+  return { kind: 'node' as const, id: display.value.id, content: display.value.content }
+})
+
+function childEdit(child: DesignNode): InlineTextEdit | null {
+  const node = props.node
+  if (node.type !== 'instance' || editor.editingTextId !== node.id || child.type !== 'text') return null
+  const component = documents.document.components.find(item => item.id === node.componentId)
+  if (!component || child.id !== component.label.targetNodeId) return null
+  return { kind: 'label', id: node.id, content: child.content }
+}
+
+function selectEditorText(element: HTMLElement) {
+  element.focus()
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+}
+
+watch(textEdit, async (edit) => {
+  if (!edit) return
+  await nextTick()
+  const element = editorEl.value
+  if (!element) return
+  element.textContent = edit.content
+  selectEditorText(element)
+  requestAnimationFrame(() => {
+    if (editorEl.value === element && editor.editingTextId === edit.id) selectEditorText(element)
+  })
+})
+
+function commitFrom(element: HTMLElement) {
+  const edit = textEdit.value
+  if (!edit) return
+  const next = element.textContent ?? ''
+  editor.beginTextEdit(null)
+  if (next === edit.content) return
+  if (edit.kind === 'label') actions.setOverride(edit.id, 'label', next)
+  else actions.patchNode(edit.id, { content: next })
+}
+
+function onTextKeydown(event: KeyboardEvent) {
+  event.stopPropagation()
+  if (event.key !== 'Escape') return
+  event.preventDefault()
+  commitFrom(event.currentTarget as HTMLElement)
+}
+
+function commitText(event: FocusEvent) {
+  commitFrom(event.target as HTMLElement)
+}
 
 function hitId() {
   return selectableId(documents.document, display.value.id, editor.selection)
@@ -84,7 +153,7 @@ function onLeave(event: PointerEvent) {
   <div
     v-if="node.visible"
     class="design-node"
-    :class="[`is-${display.type}`, { 'is-inert': !interactive, 'is-locked': node.locked }]"
+    :class="[`is-${display.type}`, { 'is-inert': !interactive, 'is-locked': node.locked, 'is-text-editing': Boolean(textEdit) }]"
     :style="inlineStyle"
     :data-node-id="interactive ? display.id : undefined"
     :aria-label="display.name"
@@ -93,7 +162,20 @@ function onLeave(event: PointerEvent) {
     @pointerenter="onEnter"
     @pointerleave="onLeave($event)"
   >
-    <template v-if="display.type === 'text'">
+    <div
+      v-if="textEdit"
+      ref="editorEl"
+      class="text-editor"
+      contenteditable="plaintext-only"
+      role="textbox"
+      aria-multiline="true"
+      spellcheck="false"
+      :style="{ textAlign: display.type === 'text' ? display.align : 'left' }"
+      @pointerdown.stop
+      @keydown="onTextKeydown"
+      @blur="commitText"
+    />
+    <template v-else-if="display.type === 'text'">
       {{ display.content }}
     </template>
     <svg
@@ -116,6 +198,7 @@ function onLeave(event: PointerEvent) {
       :node="child"
       :interactive="interactive && !locked"
       :lock-children="locked"
+      :inline-edit="childEdit(child)"
     />
   </div>
 </template>

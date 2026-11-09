@@ -42,6 +42,7 @@ type Drag =
     start: PathPoint
     origins: Map<string, { x: number, y: number }>
     moved: boolean
+    editOnRelease: string | null
   }
   | {
     kind: 'resize'
@@ -244,7 +245,10 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
       if (finished.kind === 'move') recentMoveAt = performance.now()
       return
     }
-    if (finished.kind === 'move') recentMoveAt = 0
+    if (finished.kind === 'move') {
+      recentMoveAt = 0
+      if (finished.editOnRelease) editor.beginTextEdit(finished.editOnRelease)
+    }
   }
 
   // Click count is not reliable on these pointer events, so two presses in the same spot count.
@@ -358,6 +362,34 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
     }
   }
 
+  function finishTextEdit() {
+    const active = document.querySelector('.text-editor')
+    if (!(active instanceof HTMLElement)) return
+    const id = editor.editingTextId
+    const next = active.textContent ?? ''
+    active.blur()
+    if (!id || editor.editingTextId !== id) return
+    const found = findNode(documents.snapshot(), id)
+    editor.beginTextEdit(null)
+    if (!found) return
+    if (found.node.type === 'text') {
+      if (next !== found.node.content) actions.patchNode(id, { content: next })
+      return
+    }
+    if (found.node.type !== 'instance') return
+    const component = documents.document.components.find(item => item.id === found.node.componentId)
+    const current = found.node.overrides.label ?? component?.label.defaultValue ?? ''
+    if (component && next !== current) actions.setOverride(id, 'label', next)
+  }
+
+  function canEditDirectly(node: DesignNode | undefined, doc: DesignDocument) {
+    if (!node || node.locked) return false
+    if (node.type === 'text') return true
+    if (node.type !== 'instance') return false
+    const component = doc.components.find(item => item.id === node.componentId)
+    return Boolean(component?.label.targetNodeId)
+  }
+
   function onNodePointerDown(event: PointerEvent, nodeId: string) {
     if (!event.isPrimary || (event.button !== 0 && event.button !== 1)) return
     if (spacePressed.value || event.button === 1) {
@@ -369,9 +401,11 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
     if (editor.tool !== 'select') {
       lastSelectDown = null
       event.preventDefault()
+      finishTextEdit()
       startTool(event)
       return
     }
+    finishTextEdit()
     const drill = wantsDrill(event)
     let base = documents.snapshot()
     const targetId = selectableId(base, nodeId, editor.selection, drill)
@@ -381,6 +415,17 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
       editor.toggleSelect(targetId)
       return
     }
+    const editable = canEditDirectly(target?.node, base)
+    if (drill && editable) {
+      cancelOpenMove()
+      revertRecentMove()
+      editor.selectOnly(targetId)
+      editor.beginTextEdit(targetId)
+      return
+    }
+    const editOnRelease = editable && editor.selection.length === 1 && editor.selection[0] === targetId
+      ? targetId
+      : null
     if (drill) {
       cancelOpenMove()
       revertRecentMove()
@@ -393,7 +438,7 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
       const found = findNode(base, id)
       if (found) origins.set(id, { x: found.node.x, y: found.node.y })
     }
-    drag = { kind: 'move', base, start: point(event), origins, moved: false }
+    drag = { kind: 'move', base, start: point(event), origins, moved: false, editOnRelease }
     bind()
   }
 
@@ -408,9 +453,11 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
     }
     if (editor.tool !== 'select') {
       event.preventDefault()
+      finishTextEdit()
       startTool(event)
       return
     }
+    finishTextEdit()
     const origin = point(event)
     drag = {
       kind: 'marquee',
@@ -508,7 +555,7 @@ export function provideCanvasGestures(artboard: Ref<HTMLElement | null>) {
   }
 
   function isField(target: EventTarget | null) {
-    return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select'))
+    return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, [contenteditable]'))
   }
 
   function onKeyDown(event: KeyboardEvent) {
