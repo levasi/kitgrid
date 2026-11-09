@@ -74,7 +74,7 @@ function onKeyDown(event: KeyboardEvent) {
   }
   if (meta && (event.code === 'Digit0' || event.code === 'Numpad0')) {
     event.preventDefault()
-    editor.setZoom(1)
+    editor.resetZoom()
     return
   }
   if (editor.exportOpen && event.key === 'Escape') {

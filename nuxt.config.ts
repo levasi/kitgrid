@@ -17,6 +17,11 @@ export default defineNuxtConfig({
       ],
     },
   },
+  runtimeConfig: {
+    public: {
+      googleClientId: '',
+    },
+  },
   typescript: {
     strict: true,
   },

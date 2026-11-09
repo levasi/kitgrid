@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { resolveInstance } from '#shared/components/resolve'
 import { nodeStyle, resolvedColor } from '#shared/document/paint'
 import { pathData } from '#shared/document/path'
+import { selectableId } from '#shared/document/tree'
 import { isContainer, type DesignNode, type PathNode } from '#shared/document/types'
 import { useCanvasGestures } from '../../composables/useCanvasGestures'
 import { useDocumentStore } from '../../stores/document'
@@ -36,6 +37,10 @@ const pathShape = computed(() => {
   }
 })
 
+function hitId() {
+  return selectableId(documents.document, display.value.id, editor.selection)
+}
+
 function onPointerDown(event: PointerEvent) {
   if (!props.interactive || props.node.locked) return
   event.stopPropagation()
@@ -46,12 +51,12 @@ function onContextMenu(event: MouseEvent) {
   if (!props.interactive || props.node.locked) return
   event.preventDefault()
   event.stopPropagation()
-  editor.openContextMenu(event.clientX, event.clientY, display.value.id)
+  editor.openContextMenu(event.clientX, event.clientY, hitId())
 }
 
 function onEnter() {
   if (!props.interactive || props.node.locked) return
-  editor.hoverId = display.value.id
+  editor.hoverId = hitId()
 }
 
 function pathPaint(node: PathNode) {
@@ -66,8 +71,12 @@ function pathPaint(node: PathNode) {
   }
 }
 
-function onLeave() {
-  if (editor.hoverId === display.value.id) editor.hoverId = null
+function onLeave(event: PointerEvent) {
+  const next = event.relatedTarget instanceof Element ? event.relatedTarget.closest('[data-node-id]') : null
+  const nextId = next?.getAttribute('data-node-id')
+  if (nextId && selectableId(documents.document, nextId, editor.selection) === editor.hoverId) return
+  const target = hitId()
+  if (editor.hoverId === display.value.id || editor.hoverId === target) editor.hoverId = null
 }
 </script>
 
@@ -82,7 +91,7 @@ function onLeave() {
     @pointerdown="onPointerDown"
     @contextmenu="onContextMenu"
     @pointerenter="onEnter"
-    @pointerleave="onLeave"
+    @pointerleave="onLeave($event)"
   >
     <template v-if="display.type === 'text'">
       {{ display.content }}

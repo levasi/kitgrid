@@ -70,6 +70,40 @@ export function topLevelIds(doc: DesignDocument, ids: string[]): string[] {
   return ids.filter(id => !ancestorIds(doc, id).some(ancestor => selected.has(ancestor)))
 }
 
+// A group is one object until the selection is already inside it. Double-click opens
+// the next closed group and returns the object under the pointer.
+export function selectableId(doc: DesignDocument, hitId: string, selection: readonly string[], drill = false): string {
+  const entered = openGroups(doc, selection)
+  const shallow = outermostClosedGroup(doc, hitId, entered)
+  if (!drill || shallow === hitId) return shallow
+  const group = findNode(doc, shallow)
+  if (group?.node.type !== 'group') return shallow
+  entered.add(shallow)
+  return outermostClosedGroup(doc, hitId, entered)
+}
+
+function openGroups(doc: DesignDocument, selection: readonly string[]): Set<string> {
+  const entered = new Set<string>()
+  for (const id of selection) {
+    for (const ancestorId of ancestorIds(doc, id)) {
+      const ancestor = findNode(doc, ancestorId)
+      if (ancestor?.node.type === 'group' && !ancestor.node.locked) entered.add(ancestorId)
+    }
+  }
+  return entered
+}
+
+function outermostClosedGroup(doc: DesignDocument, hitId: string, entered: ReadonlySet<string>): string {
+  let target = hitId
+  let current = findNode(doc, hitId)
+  while (current?.parent) {
+    const parent = current.parent
+    if (parent.type === 'group' && !parent.locked && !entered.has(parent.id)) target = parent.id
+    current = findNode(doc, parent.id)
+  }
+  return target
+}
+
 export function walkNodes(doc: DesignDocument, visit: (node: DesignNode) => void): void {
   const walk = (node: DesignNode) => {
     visit(node)

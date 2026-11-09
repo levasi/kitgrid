@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronDown, ChevronRight, Component as ComponentIcon, Eye, EyeOff, Frame, Group, Lock, LockOpen, Spline, Square, Type } from '@lucide/vue'
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import type { DesignNode, NodeType } from '#shared/document/types'
 import { isContainer } from '#shared/document/types'
 import { useDocumentActions } from '../../composables/useDocumentActions'
@@ -56,6 +56,16 @@ function choose(event: MouseEvent) {
   editor.rightTab = 'inspect'
 }
 
+function hover() {
+  editor.hoverId = props.node.id
+}
+
+function clearHover() {
+  if (editor.hoverId === props.node.id) editor.hoverId = null
+}
+
+onBeforeUnmount(clearHover)
+
 async function startEdit() {
   editor.selectOnly(props.node.id)
   editor.rightTab = 'inspect'
@@ -96,6 +106,8 @@ function cancel() {
       @click="choose"
       @dblclick="startEdit"
       @contextmenu="openMenu"
+      @pointerenter="hover"
+      @pointerleave="clearHover"
     >
       <button
         v-if="children.length"

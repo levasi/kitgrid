@@ -4,7 +4,9 @@ import {
   addPage,
   addSpacingToken,
   addTypographyToken,
+  alignNodes,
   deleteNodes,
+  distributeNodes,
   deletePage,
   groupNodes,
   insertNode,
@@ -23,6 +25,8 @@ import {
   updateSpacingToken,
   updateTypographyToken,
   updateVariant,
+  type AlignEdge,
+  type DistributeAxis,
   type InsertTarget,
   type NodePatch,
 } from '#shared/document/mutations'
@@ -256,8 +260,54 @@ export function useDocumentActions() {
     apply(doc => moveNodes(doc, ids, dx, dy))
   }
 
+  function align(edge: AlignEdge) {
+    if (editor.selection.length === 0) return
+    const ids = [...editor.selection]
+    apply(doc => alignNodes(doc, ids, edge))
+  }
+
+  function distribute(axis: DistributeAxis) {
+    if (editor.selection.length === 0) return
+    const ids = [...editor.selection]
+    apply(doc => distributeNodes(doc, ids, axis))
+  }
+
   function patchNode(id: string, patch: NodePatch) {
     apply(doc => updateNode(doc, id, patch))
+  }
+
+  let draftBase: DesignDocument | null = null
+
+  function previewEdit(mutator: (current: DesignDocument) => DesignDocument) {
+    const base = draftBase ?? documents.snapshot()
+    try {
+      documents.preview(mutator(base))
+      draftBase = base
+    } catch (error) {
+      fail(error)
+    }
+  }
+
+  function commitEdit(mutator: (current: DesignDocument) => DesignDocument) {
+    const base = draftBase
+    draftBase = null
+    try {
+      if (!base) documents.commit(mutator(documents.snapshot()))
+      else {
+        documents.preview(mutator(base))
+        documents.commitSnapshot(base)
+      }
+      editor.setBanner(null)
+    } catch (error) {
+      if (base) documents.preview(base)
+      fail(error)
+    }
+  }
+
+  function cancelEdit() {
+    if (!draftBase) return
+    documents.preview(draftBase)
+    draftBase = null
   }
 
   function setOverride(id: string, key: 'label' | 'variant', value: string | null) {
@@ -327,7 +377,16 @@ export function useDocumentActions() {
     ungroup,
     remove,
     nudge,
+    align,
+    distribute,
     patchNode,
+    previewNode: (id: string, patch: NodePatch) => previewEdit(doc => updateNode(doc, id, patch)),
+    commitNode: (id: string, patch: NodePatch) => commitEdit(doc => updateNode(doc, id, patch)),
+    previewVariant: (componentId: string, variantId: string, patch: Partial<VariantStyle> & { name?: string }) => previewEdit(doc => updateVariant(doc, componentId, variantId, patch)),
+    commitVariant: (componentId: string, variantId: string, patch: Partial<VariantStyle> & { name?: string }) => commitEdit(doc => updateVariant(doc, componentId, variantId, patch)),
+    previewColor: (id: string, value: string) => previewEdit(doc => updateColorToken(doc, id, { value })),
+    commitColor: (id: string, value: string) => commitEdit(doc => updateColorToken(doc, id, { value })),
+    cancelEdit,
     setOverride,
     renameComponent,
     chooseDefaultVariant,

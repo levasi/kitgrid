@@ -22,6 +22,7 @@ const selected = computed(() => {
   if (!id) return null
   return findNode(documents.document, id)?.node ?? null
 })
+const canAlignSelected = computed(() => Boolean(selected.value) && !selected.value?.locked)
 const textNode = computed(() => selected.value?.type === 'text' ? selected.value : null)
 const shapeNode = computed(() =>
   selected.value && (selected.value.type === 'rectangle' || selected.value.type === 'frame') ? selected.value : null,
@@ -97,10 +98,15 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
           <span>Variant name</span>
           <input :value="activeVariant.name" @change="actions.patchVariant(editing.id, activeVariant.id, { name: text($event) })">
         </label>
-        <label class="field">
-          <span>Fill</span>
-          <input :value="activeVariant.style.fill" @change="actions.patchVariant(editing.id, activeVariant.id, { fill: text($event) })">
-        </label>
+        <ColorField
+          label="Fill"
+          :value="activeVariant.style.fill"
+          :token-id="activeVariant.style.fillTokenId"
+          @input="actions.previewVariant(editing.id, activeVariant.id, { fill: $event, fillTokenId: null })"
+          @change="actions.commitVariant(editing.id, activeVariant.id, { fill: $event, fillTokenId: null })"
+          @token="actions.patchVariant(editing.id, activeVariant.id, { fillTokenId: $event })"
+          @cancel="actions.cancelEdit()"
+        />
         <label class="field">
           <span>Fill token</span>
           <select :value="activeVariant.style.fillTokenId ?? ''" @change="actions.patchVariant(editing.id, activeVariant.id, { fillTokenId: tokenId($event) })">
@@ -112,10 +118,15 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
             </option>
           </select>
         </label>
-        <label class="field">
-          <span>Text</span>
-          <input :value="activeVariant.style.textColor" @change="actions.patchVariant(editing.id, activeVariant.id, { textColor: text($event) })">
-        </label>
+        <ColorField
+          label="Text"
+          :value="activeVariant.style.textColor"
+          :token-id="activeVariant.style.textColorTokenId"
+          @input="actions.previewVariant(editing.id, activeVariant.id, { textColor: $event, textColorTokenId: null })"
+          @change="actions.commitVariant(editing.id, activeVariant.id, { textColor: $event, textColorTokenId: null })"
+          @token="actions.patchVariant(editing.id, activeVariant.id, { textColorTokenId: $event })"
+          @cancel="actions.cancelEdit()"
+        />
         <label class="field">
           <span>Text token</span>
           <select :value="activeVariant.style.textColorTokenId ?? ''" @change="actions.patchVariant(editing.id, activeVariant.id, { textColorTokenId: tokenId($event) })">
@@ -142,8 +153,9 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
 
     <section v-if="editor.selection.length > 1" class="inspector-block">
       <h3>{{ editor.selection.length }} objects selected</h3>
+      <AlignmentControls />
       <p class="hint">
-        Group them if they share a parent. Drag moves every selected object.
+        Group wraps the selected objects. Drag moves every selected object.
       </p>
     </section>
 
@@ -172,19 +184,12 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
 
     <section v-else class="inspector-block">
       <h3>{{ selected.type }}</h3>
+      <AlignmentControls v-if="canAlignSelected" />
       <label class="field">
         <span>Name</span>
         <input :value="selected.name" @change="patch({ name: text($event) })">
       </label>
       <div class="field-grid">
-        <label class="field">
-          <span>X</span>
-          <input type="number" :value="selected.x" @change="patch({ x: number($event) })">
-        </label>
-        <label class="field">
-          <span>Y</span>
-          <input type="number" :value="selected.y" @change="patch({ y: number($event) })">
-        </label>
         <label class="field">
           <span>W</span>
           <input type="number" min="1" :value="selected.width" @change="patch({ width: number($event) })">
@@ -250,10 +255,15 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
           </option>
         </select>
       </label>
-      <label class="field">
-        <span>Color</span>
-        <input :disabled="Boolean(textNode.colorTokenId)" :value="textNode.color" @change="patch({ color: text($event) })">
-      </label>
+      <ColorField
+        label="Color"
+        :value="textNode.color"
+        :token-id="textNode.colorTokenId"
+        @input="actions.previewNode(textNode.id, { color: $event, colorTokenId: null })"
+        @change="actions.commitNode(textNode.id, { color: $event, colorTokenId: null })"
+        @token="actions.patchNode(textNode.id, { colorTokenId: $event })"
+        @cancel="actions.cancelEdit()"
+      />
     </section>
 
     <section v-if="pathNode" class="inspector-block">
@@ -268,10 +278,15 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
           </option>
         </select>
       </label>
-      <label class="field">
-        <span>Fill</span>
-        <input :disabled="Boolean(pathNode.fillTokenId)" :value="pathNode.fill" @change="patch({ fill: text($event) })">
-      </label>
+      <ColorField
+        label="Fill"
+        :value="pathNode.fill"
+        :token-id="pathNode.fillTokenId"
+        @input="actions.previewNode(pathNode.id, { fill: $event, fillTokenId: null })"
+        @change="actions.commitNode(pathNode.id, { fill: $event, fillTokenId: null })"
+        @token="actions.patchNode(pathNode.id, { fillTokenId: $event })"
+        @cancel="actions.cancelEdit()"
+      />
       <label class="field">
         <span>Stroke</span>
         <input type="number" min="0" :value="pathNode.strokeWidth" @change="patch({ strokeWidth: number($event) })">
@@ -287,10 +302,15 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
           </option>
         </select>
       </label>
-      <label class="field">
-        <span>Stroke color</span>
-        <input :disabled="Boolean(pathNode.strokeTokenId)" :value="pathNode.stroke" @change="patch({ stroke: text($event) })">
-      </label>
+      <ColorField
+        label="Stroke color"
+        :value="pathNode.stroke"
+        :token-id="pathNode.strokeTokenId"
+        @input="actions.previewNode(pathNode.id, { stroke: $event, strokeTokenId: null })"
+        @change="actions.commitNode(pathNode.id, { stroke: $event, strokeTokenId: null })"
+        @token="actions.patchNode(pathNode.id, { strokeTokenId: $event })"
+        @cancel="actions.cancelEdit()"
+      />
     </section>
 
     <section v-if="shapeNode" class="inspector-block">
@@ -305,10 +325,15 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
           </option>
         </select>
       </label>
-      <label class="field">
-        <span>Fill</span>
-        <input :disabled="Boolean(shapeNode.fillTokenId)" :value="shapeNode.fill" @change="patch({ fill: text($event) })">
-      </label>
+      <ColorField
+        label="Fill"
+        :value="shapeNode.fill"
+        :token-id="shapeNode.fillTokenId"
+        @input="actions.previewNode(shapeNode.id, { fill: $event, fillTokenId: null })"
+        @change="actions.commitNode(shapeNode.id, { fill: $event, fillTokenId: null })"
+        @token="actions.patchNode(shapeNode.id, { fillTokenId: $event })"
+        @cancel="actions.cancelEdit()"
+      />
       <div class="field-grid">
         <label class="field">
           <span>Radius</span>
@@ -330,10 +355,15 @@ function patch(patchValue: Parameters<typeof actions.patchNode>[1]) {
           </option>
         </select>
       </label>
-      <label class="field">
-        <span>Stroke color</span>
-        <input :disabled="Boolean(shapeNode.strokeTokenId)" :value="shapeNode.stroke" @change="patch({ stroke: text($event) })">
-      </label>
+      <ColorField
+        label="Stroke color"
+        :value="shapeNode.stroke"
+        :token-id="shapeNode.strokeTokenId"
+        @input="actions.previewNode(shapeNode.id, { stroke: $event, strokeTokenId: null })"
+        @change="actions.commitNode(shapeNode.id, { stroke: $event, strokeTokenId: null })"
+        @token="actions.patchNode(shapeNode.id, { strokeTokenId: $event })"
+        @cancel="actions.cancelEdit()"
+      />
     </section>
 
     <section v-if="frameNode" class="inspector-block">

@@ -26,8 +26,13 @@ function number(event: Event) {
       </header>
       <div v-for="token in documents.document.tokens.colors" :key="token.id" class="token-row">
         <input :value="token.name" @change="actions.patchColor(token.id, { name: text($event) })">
-        <input type="color" :value="token.value" @change="actions.patchColor(token.id, { value: text($event) })">
-        <input :value="token.value" @change="actions.patchColor(token.id, { value: text($event) })">
+        <ColorField
+          :value="token.value"
+          :show-tokens="false"
+          @input="value => actions.previewColor(token.id, value)"
+          @change="value => actions.commitColor(token.id, value)"
+          @cancel="actions.cancelEdit()"
+        />
         <button type="button" class="icon-button" title="Delete color" @click="actions.deleteColor(token.id)">
           ×
         </button>

@@ -1,10 +1,14 @@
 import { createId } from './ids'
-import { findDescendant, findNode, topLevelIds, walkNodes } from './tree'
+import { absoluteBox } from './geometry'
+import { framePadding } from './paint'
+import { ancestorIds, findDescendant, findNode, topLevelIds, walkNodes, type FoundNode } from './tree'
 import type {
+  Box,
   ColorToken,
   DesignDocument,
   DesignNode,
   FrameDirection,
+  FrameNode,
   GroupNode,
   Page,
   SpacingToken,
@@ -149,6 +153,114 @@ export function moveNodes(doc: DesignDocument, ids: string[], dx: number, dy: nu
   return next
 }
 
+export type AlignEdge = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
+
+function contentBox(doc: DesignDocument, container: DesignNode): Box | null {
+  const box = absoluteBox(doc, container.id)
+  if (!box) return null
+  const pad = framePadding(container, doc.tokens)
+  return {
+    x: box.x + pad,
+    y: box.y + pad,
+    width: Math.max(0, box.width - pad * 2),
+    height: Math.max(0, box.height - pad * 2),
+  }
+}
+
+function alignReference(doc: DesignDocument, id: string): Box | null {
+  const found = findNode(doc, id)
+  if (!found) return null
+  if (found.parent) return contentBox(doc, found.parent)
+  const scope = found.scope
+  if (scope.kind !== 'page') return null
+  const page = doc.pages.find(item => item.id === scope.pageId)
+  return page ? { x: 0, y: 0, width: page.width, height: page.height } : null
+}
+
+function boundsOf(boxes: Box[]): Box {
+  const minX = Math.min(...boxes.map(box => box.x))
+  const minY = Math.min(...boxes.map(box => box.y))
+  const maxX = Math.max(...boxes.map(box => box.x + box.width))
+  const maxY = Math.max(...boxes.map(box => box.y + box.height))
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+}
+
+function alignTargets(doc: DesignDocument, ids: string[]) {
+  return ids.flatMap((id) => {
+    const found = findNode(doc, id)
+    const box = absoluteBox(doc, id)
+    return found && box && !found.node.locked ? [{ node: found.node, box }] : []
+  })
+}
+
+// Children of an auto-layout frame are placed by the layout, so their x and y are ignored.
+function alignsChildren(node: DesignNode): node is FrameNode | GroupNode {
+  if (!isContainer(node) || node.children.length === 0) return false
+  return node.type === 'group' || node.direction === 'none'
+}
+
+// Several objects align to their combined bounds. A single frame or group aligns its
+// children inside itself; any other single object aligns to its parent.
+function alignSubjects(doc: DesignDocument, ids: string[]) {
+  const targets = alignTargets(doc, topLevelIds(doc, ids))
+  const first = targets[0]
+  if (!first) return null
+  if (targets.length > 1) return { targets, reference: boundsOf(targets.map(target => target.box)) }
+  if (alignsChildren(first.node)) {
+    const reference = contentBox(doc, first.node)
+    const children = alignTargets(doc, first.node.children.map(child => child.id))
+    return reference ? { targets: children, reference } : null
+  }
+  const reference = alignReference(doc, first.node.id)
+  return reference ? { targets, reference } : null
+}
+
+export function distributableCount(doc: DesignDocument, ids: string[]): number {
+  return alignSubjects(doc, ids)?.targets.length ?? 0
+}
+
+export function alignNodes(doc: DesignDocument, ids: string[], edge: AlignEdge): DesignDocument {
+  const next = clone(doc)
+  const subjects = alignSubjects(next, ids)
+  if (!subjects) return next
+  const { targets, reference } = subjects
+  for (const { node, box } of targets) {
+    if (edge === 'left') node.x += reference.x - box.x
+    else if (edge === 'center') node.x += reference.x + (reference.width - box.width) / 2 - box.x
+    else if (edge === 'right') node.x += reference.x + reference.width - box.width - box.x
+    else if (edge === 'top') node.y += reference.y - box.y
+    else if (edge === 'middle') node.y += reference.y + (reference.height - box.height) / 2 - box.y
+    else node.y += reference.y + reference.height - box.height - box.y
+    node.x = Math.round(node.x)
+    node.y = Math.round(node.y)
+  }
+  return next
+}
+
+export type DistributeAxis = 'horizontal' | 'vertical'
+
+// The outermost objects stay put; the ones between them move so every gap is equal.
+export function distributeNodes(doc: DesignDocument, ids: string[], axis: DistributeAxis): DesignDocument {
+  const next = clone(doc)
+  const targets = alignSubjects(next, ids)?.targets ?? []
+  if (targets.length < 3) return next
+  const start = (box: Box) => axis === 'horizontal' ? box.x : box.y
+  const size = (box: Box) => axis === 'horizontal' ? box.width : box.height
+  const ordered = [...targets].sort((a, b) => start(a.box) - start(b.box))
+  const first = ordered[0]
+  if (!first) return next
+  const span = Math.max(...ordered.map(target => start(target.box) + size(target.box))) - start(first.box)
+  const gap = (span - ordered.reduce((sum, target) => sum + size(target.box), 0)) / (ordered.length - 1)
+  let cursor = start(first.box)
+  for (const { node, box } of ordered) {
+    const delta = Math.round(cursor) - start(box)
+    if (axis === 'horizontal') node.x += delta
+    else node.y += delta
+    cursor += size(box) + gap
+  }
+  return next
+}
+
 export function translateNodes(
   doc: DesignDocument,
   origins: Map<string, { x: number, y: number }>,
@@ -182,29 +294,86 @@ export function resizeNode(doc: DesignDocument, id: string, box: { x: number, y:
   return next
 }
 
+function sameScope(a: FoundNode['scope'], b: FoundNode['scope']) {
+  if (a.kind !== b.kind) return false
+  if (a.kind === 'page' && b.kind === 'page') return a.pageId === b.pageId
+  return a.kind === 'component' && b.kind === 'component' && a.componentId === b.componentId
+}
+
+function contentOrigin(doc: DesignDocument, parent: DesignNode) {
+  const box = absoluteBox(doc, parent.id)
+  const pad = framePadding(parent, doc.tokens)
+  return { x: (box?.x ?? 0) + pad, y: (box?.y ?? 0) + pad }
+}
+
+function groupContainer(doc: DesignDocument, found: FoundNode[]) {
+  const chains = found.map((item) => {
+    const chain: DesignNode[] = []
+    let parent = item.parent
+    while (parent) {
+      chain.push(parent)
+      const up = findNode(doc, parent.id)
+      parent = up?.parent ?? null
+    }
+    return chain
+  })
+  for (const candidate of chains[0] ?? []) {
+    if (!isContainer(candidate)) continue
+    if (chains.every(chain => chain.some(node => node.id === candidate.id))) {
+      return { siblings: candidate.children, parent: candidate }
+    }
+  }
+  const sample = found[0]
+  if (!sample) throw new Error('Select at least two objects to group.')
+  const scope = sample.scope
+  if (scope.kind === 'component') {
+    const component = doc.components.find(item => item.id === scope.componentId)
+    if (!component) throw new Error('Component not found.')
+    return { siblings: component.root.children, parent: component.root }
+  }
+  const page = doc.pages.find(item => item.id === scope.pageId)
+  if (!page) throw new Error('Page not found.')
+  return { siblings: page.children, parent: null }
+}
+
 export function groupNodes(doc: DesignDocument, ids: string[]): { document: DesignDocument, groupId: string } {
   if (ids.length < 2) throw new Error('Select at least two objects to group.')
   const next = clone(doc)
-  const found = ids.map((id) => {
+  const targets = ids.filter(id => !ids.some(other => other !== id && ancestorIds(next, other).includes(id)))
+  if (targets.length < 2) throw new Error('Select at least two objects to group.')
+  const found = targets.map((id) => {
     const node = findNode(next, id)
     if (!node) throw new Error('One of the selected objects no longer exists.')
     return node
   })
-  const siblings = found[0]?.siblings
-  if (!siblings || found.some(item => item.siblings !== siblings)) {
-    throw new Error('Select objects that share the same parent.')
-  }
   if (found.some(item => item.scope.kind === 'component' && item.parent === null)) {
     throw new Error('The component source cannot be grouped.')
   }
-  const ordered = [...found].sort((a, b) => a.index - b.index)
-  const minX = Math.min(...ordered.map(item => item.node.x))
-  const minY = Math.min(...ordered.map(item => item.node.y))
-  const maxX = Math.max(...ordered.map(item => item.node.x + item.node.width))
-  const maxY = Math.max(...ordered.map(item => item.node.y + item.node.height))
-  const children = ordered.map((item) => {
-    item.node.x -= minX
-    item.node.y -= minY
+  const scope = found[0]?.scope
+  if (!scope || found.some(item => !sameScope(item.scope, scope))) {
+    throw new Error('Select objects on the same page.')
+  }
+  const order = new Map<string, number>()
+  let cursor = 0
+  walkNodes(next, (node) => {
+    order.set(node.id, cursor)
+    cursor += 1
+  })
+  const ordered = [...found].sort((a, b) => (order.get(a.node.id) ?? 0) - (order.get(b.node.id) ?? 0))
+  const container = groupContainer(next, ordered)
+  const origin = container.parent ? contentOrigin(next, container.parent) : { x: 0, y: 0 }
+  const placed = ordered.map((item) => {
+    const box = absoluteBox(next, item.node.id)
+    if (!box) throw new Error('One of the selected objects no longer exists.')
+    return { item, x: box.x - origin.x, y: box.y - origin.y }
+  })
+  const minX = Math.min(...placed.map(item => item.x))
+  const minY = Math.min(...placed.map(item => item.y))
+  const maxX = Math.max(...placed.map(item => item.x + item.item.node.width))
+  const maxY = Math.max(...placed.map(item => item.y + item.item.node.height))
+  const children = placed.map(({ item, x, y }) => {
+    item.node.x = x - minX
+    item.node.y = y - minY
     return item.node
   })
   const group: GroupNode = {
@@ -219,12 +388,19 @@ export function groupNodes(doc: DesignDocument, ids: string[]): { document: Desi
     locked: false,
     children,
   }
-  const indexes = ordered.map(item => item.index).sort((a, b) => a - b)
-  const first = indexes[0] ?? 0
-  for (let index = indexes.length - 1; index >= 0; index -= 1) {
-    siblings.splice(indexes[index] ?? 0, 1)
+  const direct = ordered.filter(item => item.siblings === container.siblings).map(item => item.index)
+  const insertAt = direct.length > 0 ? Math.min(...direct) : container.siblings.length
+  const removedBefore = direct.filter(index => index < insertAt).length
+  const lists = new Map<DesignNode[], number[]>()
+  for (const item of ordered) {
+    const indexes = lists.get(item.siblings) ?? []
+    indexes.push(item.index)
+    lists.set(item.siblings, indexes)
   }
-  siblings.splice(first, 0, group)
+  for (const [list, indexes] of lists) {
+    for (const index of indexes.sort((a, b) => b - a)) list.splice(index, 1)
+  }
+  container.siblings.splice(insertAt - removedBefore, 0, group)
   return { document: finish(next), groupId: group.id }
 }
 

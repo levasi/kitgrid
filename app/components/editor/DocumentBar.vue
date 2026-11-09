@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { findNode } from '#shared/document/tree'
-import { useDocumentActions } from '../../composables/useDocumentActions'
-import { useDocumentStore } from '../../stores/document'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ChevronDown, Grid3x3, Magnet } from '@lucide/vue'
+import { GRID_SIZES, type GridStyle, type SnapKind } from '#shared/document/snap'
 import { useEditorStore } from '../../stores/editor'
+import { useSessionStore } from '../../stores/session'
 
 const emit = defineEmits<{
   open: []
@@ -11,24 +11,56 @@ const emit = defineEmits<{
   saveAs: []
 }>()
 
-const documents = useDocumentStore()
 const editor = useEditorStore()
-const actions = useDocumentActions()
-
-const canUngroup = computed(() => {
-  const id = editor.selection.length === 1 ? editor.selection[0] : null
-  if (!id) return false
-  return findNode(documents.document, id)?.node.type === 'group'
-})
-
-const fileLabel = computed(() => {
-  const path = documents.filePath
-  if (!path) return documents.document.name
-  const parts = path.split(/[/\\]/)
-  return parts.at(-1) || documents.document.name
-})
-
+const session = useSessionStore()
 const zoomLabel = computed(() => `${Math.round(editor.zoom * 100)}%`)
+const snapMenuOpen = ref(false)
+const gridMenuOpen = ref(false)
+const snapRoot = ref<HTMLElement | null>(null)
+const gridRoot = ref<HTMLElement | null>(null)
+const accountRoot = ref<HTMLElement | null>(null)
+const accountOpen = ref(false)
+
+const snapTypes: Array<{ id: SnapKind, label: string }> = [
+  { id: 'grid', label: 'Grid' },
+  { id: 'edges', label: 'Layer edges' },
+  { id: 'centers', label: 'Layer centers' },
+  { id: 'pixels', label: 'Pixels' },
+]
+const gridStyles: Array<{ id: GridStyle, label: string }> = [
+  { id: 'lines', label: 'Lines' },
+  { id: 'dots', label: 'Dots' },
+]
+
+function onWindowPointerDown(event: PointerEvent) {
+  const target = event.target
+  if (!(target instanceof Node)) return
+  if (snapRoot.value?.contains(target) || gridRoot.value?.contains(target) || accountRoot.value?.contains(target)) return
+  snapMenuOpen.value = false
+  gridMenuOpen.value = false
+  accountOpen.value = false
+}
+
+function onWindowKeyDown(event: KeyboardEvent) {
+  if (event.key !== 'Escape') return
+  snapMenuOpen.value = false
+  gridMenuOpen.value = false
+  accountOpen.value = false
+}
+
+function signOut() {
+  accountOpen.value = false
+  session.signOut()
+}
+
+onMounted(() => {
+  window.addEventListener('pointerdown', onWindowPointerDown)
+  window.addEventListener('keydown', onWindowKeyDown)
+})
+onUnmounted(() => {
+  window.removeEventListener('pointerdown', onWindowPointerDown)
+  window.removeEventListener('keydown', onWindowKeyDown)
+})
 </script>
 
 <template>
@@ -36,36 +68,97 @@ const zoomLabel = computed(() => `${Math.round(editor.zoom * 100)}%`)
     <div class="brand">
       Kitgrid
     </div>
-    <div class="file-name" :title="documents.filePath ?? 'Untitled'">
-      <span>{{ fileLabel }}</span>
-      <span v-if="documents.dirty" class="dirty" aria-label="Unsaved changes" />
+    <button type="button" class="zoom-label" title="Zoom to 100%" @click="editor.resetZoom">
+      {{ zoomLabel }}
+    </button>
+    <div ref="gridRoot" class="snap-control">
+      <button
+        type="button"
+        class="icon-button"
+        :class="{ active: editor.gridVisible }"
+        :aria-pressed="editor.gridVisible"
+        :aria-label="editor.gridVisible ? 'Hide grid' : 'Show grid'"
+        :title="editor.gridVisible ? 'Hide grid' : 'Show grid'"
+        @click="editor.gridVisible = !editor.gridVisible"
+      >
+        <Grid3x3 :size="14" :stroke-width="2" />
+      </button>
+      <button
+        type="button"
+        class="icon-button"
+        :class="{ active: gridMenuOpen }"
+        title="Grid options"
+        aria-haspopup="menu"
+        :aria-expanded="gridMenuOpen"
+        @click="gridMenuOpen = !gridMenuOpen"
+      >
+        <ChevronDown :size="14" :stroke-width="2" />
+      </button>
+      <div v-if="gridMenuOpen" class="snap-menu" role="menu">
+        <p>Size</p>
+        <label v-for="size in GRID_SIZES" :key="size">
+          <input
+            type="radio"
+            name="grid-size"
+            :checked="editor.gridSize === size"
+            @change="editor.gridSize = size"
+          >
+          {{ size }}px
+        </label>
+        <p>Style</p>
+        <label v-for="style in gridStyles" :key="style.id">
+          <input
+            type="radio"
+            name="grid-style"
+            :checked="editor.gridStyle === style.id"
+            @change="editor.gridStyle = style.id"
+          >
+          {{ style.label }}
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            :checked="editor.gridMajor"
+            @change="editor.gridMajor = !editor.gridMajor"
+          >
+          Major every 8
+        </label>
+      </div>
     </div>
-    <div class="toolbar-group">
-      <button type="button" :disabled="!documents.canUndo" title="Undo" @click="documents.undo">
-        Undo
+    <div ref="snapRoot" class="snap-control">
+      <button
+        type="button"
+        class="icon-button"
+        :class="{ active: editor.snap }"
+        :aria-pressed="editor.snap"
+        aria-label="Snap"
+        :title="editor.snap ? 'Turn snap off' : 'Turn snap on'"
+        @click="editor.snap = !editor.snap"
+      >
+        <Magnet :size="14" :stroke-width="2" />
       </button>
-      <button type="button" :disabled="!documents.canRedo" title="Redo" @click="documents.redo">
-        Redo
+      <button
+        type="button"
+        class="icon-button"
+        :class="{ active: snapMenuOpen }"
+        title="Snap types"
+        aria-haspopup="menu"
+        :aria-expanded="snapMenuOpen"
+        @click="snapMenuOpen = !snapMenuOpen"
+      >
+        <ChevronDown :size="14" :stroke-width="2" />
       </button>
-    </div>
-    <span class="sep" />
-    <div class="toolbar-group">
-      <button type="button" :disabled="editor.selection.length < 2" title="Group" @click="actions.group">
-        Group
-      </button>
-      <button type="button" :disabled="!canUngroup" title="Ungroup" @click="actions.ungroup">
-        Ungroup
-      </button>
-    </div>
-    <span class="sep" />
-    <div class="toolbar-group zoom">
-      <button type="button" title="Zoom out" @click="editor.setZoom(editor.zoom / 1.1)">
-        −
-      </button>
-      <span class="zoom-label" title="Zoom to 100% (Ctrl+0)">{{ zoomLabel }}</span>
-      <button type="button" title="Zoom in" @click="editor.setZoom(editor.zoom * 1.1)">
-        +
-      </button>
+      <div v-if="snapMenuOpen" class="snap-menu" role="menu">
+        <p>Snap to</p>
+        <label v-for="item in snapTypes" :key="item.id">
+          <input
+            type="checkbox"
+            :checked="editor.snapKinds.includes(item.id)"
+            @change="editor.toggleSnapKind(item.id)"
+          >
+          {{ item.label }}
+        </label>
+      </div>
     </div>
     <div class="document-spacer" />
     <div class="toolbar-group">
@@ -81,6 +174,24 @@ const zoomLabel = computed(() => `${Math.round(editor.zoom * 100)}%`)
       <button type="button" class="primary" @click="editor.exportOpen = true">
         Export
       </button>
+    </div>
+    <div v-if="session.user" ref="accountRoot" class="account">
+      <button
+        type="button"
+        class="account-button"
+        :aria-expanded="accountOpen"
+        aria-haspopup="menu"
+        @click="accountOpen = !accountOpen"
+      >
+        <img v-if="session.user.picture" :src="session.user.picture" alt="" referrerpolicy="no-referrer">
+        <span>{{ session.user.name }}</span>
+      </button>
+      <div v-if="accountOpen" class="snap-menu account-menu" role="menu">
+        <p>{{ session.user.email }}</p>
+        <button type="button" role="menuitem" @click="signOut">
+          Sign out
+        </button>
+      </div>
     </div>
   </header>
 </template>
