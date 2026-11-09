@@ -113,31 +113,15 @@ textarea:disabled {
   border-radius: 999px;
 }
 .account-button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-menu { right: 0; left: auto; min-width: 180px; }
 .account-menu button { width: 100%; text-align: left; }
-
-.sign-in {
-  display: grid;
-  height: 100%;
-  place-items: center;
-  background: #f4f4f5;
+.google-button { min-height: 40px; }
+.sign-in-error {
+  margin: 8px 4px 0;
+  color: #be123c;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
 }
-.sign-in section {
-  width: min(360px, calc(100% - 32px));
-  padding: 28px;
-  border: 1px solid #e4e4e7;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 6%);
-}
-.sign-in .brand { margin: 0 0 20px; font-weight: 650; }
-.sign-in h1 { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
-.sign-in section > p:not(.brand) { margin: 0 0 16px; color: #71717a; }
-.sign-in .hint { font-size: 12px; }
-.sign-in .hint.error { color: #be123c; }
-.sign-in code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
-.google-button { min-height: 40px; margin-bottom: 12px; }
-.sign-in .primary { width: 100%; }
 
 .toolbar {
   display: flex;
@@ -240,6 +224,16 @@ textarea:disabled {
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.document-bar .account-menu {
+  right: 0;
+  left: auto;
+}
+
+.document-bar .sign-in-menu {
+  width: 336px;
+  padding: 8px;
 }
 
 .snap-menu p {

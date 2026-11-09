@@ -68,24 +68,17 @@ export function accountFromCredential(credential: string, clientId: string): Goo
 
 export const useSessionStore = defineStore('session', () => {
   const user = ref<GoogleAccount | null>(readStored())
-  const skipped = ref(false)
 
   function signIn(account: GoogleAccount) {
     user.value = account
-    skipped.value = false
     localStorage.setItem(storageKey, JSON.stringify(account))
-  }
-
-  function continueLocally() {
-    skipped.value = true
   }
 
   function signOut() {
     user.value = null
-    skipped.value = false
     localStorage.removeItem(storageKey)
     window.google?.accounts.id.disableAutoSelect()
   }
 
-  return { user, skipped, signIn, continueLocally, signOut }
+  return { user, signIn, signOut }
 })

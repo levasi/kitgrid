@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ChevronDown, Grid3x3, Magnet } from '@lucide/vue'
 import { GRID_SIZES, type GridStyle, type SnapKind } from '#shared/document/snap'
-import { useEditorStore } from '../../stores/editor'
-import { useSessionStore } from '../../stores/session'
+import { renderGoogleButton } from '../../composables/useGoogleSignIn'
+import { accountFromCredential, useSessionStore } from '../../stores/session'
 
 const emit = defineEmits<{
   open: []
@@ -13,6 +13,9 @@ const emit = defineEmits<{
 
 const editor = useEditorStore()
 const session = useSessionStore()
+const clientId = useRuntimeConfig().public.googleClientId
+const googleHost = ref<HTMLElement | null>(null)
+const signInError = ref('')
 const zoomLabel = computed(() => `${Math.round(editor.zoom * 100)}%`)
 const snapMenuOpen = ref(false)
 const gridMenuOpen = ref(false)
@@ -52,6 +55,26 @@ function signOut() {
   accountOpen.value = false
   session.signOut()
 }
+
+watch(accountOpen, async (open) => {
+  if (!open || session.user || !clientId) return
+  await nextTick()
+  if (!googleHost.value) return
+  try {
+    await renderGoogleButton(googleHost.value, clientId, (credential) => {
+      const account = accountFromCredential(credential, clientId)
+      if (!account) {
+        signInError.value = 'Google did not return a usable account.'
+        return
+      }
+      signInError.value = ''
+      session.signIn(account)
+      accountOpen.value = false
+    })
+  } catch (cause) {
+    signInError.value = cause instanceof Error ? cause.message : 'Google sign-in could not be loaded.'
+  }
+})
 
 onMounted(() => {
   window.addEventListener('pointerdown', onWindowPointerDown)
@@ -174,6 +197,22 @@ onUnmounted(() => {
       <button type="button" class="primary" @click="editor.exportOpen = true">
         Export
       </button>
+    </div>
+    <div v-if="!session.user && clientId" ref="accountRoot" class="account">
+      <button
+        type="button"
+        :aria-expanded="accountOpen"
+        aria-haspopup="menu"
+        @click="accountOpen = !accountOpen"
+      >
+        Sign in
+      </button>
+      <div v-if="accountOpen" class="snap-menu account-menu sign-in-menu" role="menu">
+        <div ref="googleHost" class="google-button" />
+        <p v-if="signInError" class="sign-in-error">
+          {{ signInError }}
+        </p>
+      </div>
     </div>
     <div v-if="session.user" ref="accountRoot" class="account">
       <button
